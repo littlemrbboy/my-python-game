@@ -1,0 +1,73 @@
+SUDOKU WEBSERVER - installatie & gebruik
+==========================================
+
+1) INSTALLEREN (eenmalig)
+--------------------------
+Open een terminal/command prompt in deze map en typ:
+
+    pip install -r requirements.txt
+
+(werkt Windows/Mac/Linux hetzelfde; gebruik eventueel "pip3" i.p.v. "pip")
+
+
+2) STARTEN
+-----------
+    python app.py
+
+(gebruik eventueel "python3" i.p.v. "python")
+
+Je ziet dan iets als:
+
+    Sudoku-server draait!
+      Op deze computer:      http://localhost:5000
+      Voor anderen op wifi:  http://<jouw-lokale-ip>:5000
+
+
+3) JE LOKALE IP-ADRES VINDEN (om aan anderen te geven)
+--------------------------------------------------------
+Windows:      open cmd, typ  ipconfig            -> kijk bij "IPv4-adres"
+Mac:          open Terminal, typ  ifconfig | grep inet   -> of ga naar Systeemvoorkeuren > Netwerk
+Linux:        open terminal, typ  ip a               -> kijk bij je wifi-adapter (meestal wlan0)
+
+Het lokale IP-adres ziet er meestal uit als: 192.168.x.x
+
+Iedereen die verbonden is met HETZELFDE wifi-netwerk als deze computer
+kan dan in hun eigen browser naar:
+
+    http://192.168.x.x:5000
+
+(vul je eigen IP-adres in) en meespelen.
+
+Let op: dit werkt alleen zolang deze computer AAN staat, de server draait
+(dit terminalvenster open blijft) en iedereen op hetzelfde wifi-netwerk zit.
+Het werkt dus niet vanaf een ander netwerk (bijv. mobiel 4G/5G) of van buitenaf.
+
+
+4) HOE HET SPEL WERKT
+------------------------
+- Iedereen vult bovenaan zijn/haar naam in.
+- "Makkelijk / Gemiddeld / Moeilijk"-knoppen: je speelt je EIGEN puzzel.
+  Als je klaar bent, wordt je tijd automatisch opgeslagen in het scorebord
+  (zichtbaar onderaan het spelscherm, per moeilijkheidsgraad).
+- "Race"-knoppen: er wordt EEN puzzel gegenereerd die voor IEDEREEN op het
+  netwerk gelijk is. Zodra iemand op "Race" klikt, zien andere spelers
+  (die de pagina open hebben staan, of net openen) automatisch dezelfde
+  puzzel verschijnen, met een live ranglijst van wie het eerst klaar is.
+- Alle tijden komen ook terecht in het algemene scorebord.
+
+
+5) WAAR STAAN DE GEGEVENS?
+-----------------------------
+Alle scores staan in het bestand "sudoku_scores.db" (een SQLite-database)
+dat vanzelf wordt aangemaakt in deze map zodra je de server voor het eerst
+start. Dit bestand kun je gewoon bewaren/back-uppen; verwijder je het,
+dan begint het scorebord weer leeg.
+
+
+6) DIT IS EEN ONTWIKKELSERVER
+---------------------------------
+Flask geeft een waarschuwing dat dit een "development server" is. Dat is
+prima voor thuisgebruik met een paar mensen op je eigen wifi. Voor
+permanent/publiek gebruik op het echte internet zou je een productie-
+server (bijv. gunicorn) en beveiliging moeten toevoegen — dat is voor een
+casual potje sudoku met vrienden/familie niet nodig.

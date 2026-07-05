@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<title>Sudoku</title>
+<style>
+  :root {
+    --achtergrond: #fdf6e9;
+    --makkelijk: #5cb85c;
+    --gemiddeld: #f0ad4e;
+    --moeilijk: #d9534f;
+    --donker: #3a3a3a;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--achtergrond);
+    font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: var(--donker);
+    padding: 20px;
+  }
+
+  .verborgen { display: none !important; }
+
+  /* ---------- Startscherm ---------- */
+  #start-scherm { text-align: center; padding: 20px; }
+
+  #icoon-grid {
+    width: 160px; height: 160px; margin: 0 auto 12px auto;
+    display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+    border: 3px solid var(--donker); border-radius: 6px; overflow: hidden;
+  }
+  .icoon-cel { display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; border: 1px solid var(--donker); }
+
+  h1.titel { font-size: 34px; margin: 0 0 4px 0; }
+  p.subtitel { color: #777; margin: 0 0 16px 0; }
+
+  #naam-veld {
+    width: 240px; padding: 10px; font-size: 14px; margin-bottom: 16px;
+    border: 2px solid #ddd; border-radius: 8px; text-align: center;
+  }
+
+  .niveau-knop {
+    display: block; width: 240px; margin: 8px auto; padding: 12px 0;
+    font-size: 16px; font-weight: bold; color: white; border: none;
+    border-radius: 8px; cursor: pointer; transition: filter 0.15s ease;
+  }
+  .niveau-knop:hover { filter: brightness(1.08); }
+  .knop-makkelijk { background: var(--makkelijk); }
+  .knop-gemiddeld { background: var(--gemiddeld); }
+  .knop-moeilijk  { background: var(--moeilijk); }
+
+  .scherm-scheiding { margin: 22px auto; width: 240px; border-top: 1px solid #ddd; }
+
+  #race-status {
+    width: 260px; margin: 0 auto 14px auto; padding: 10px; border-radius: 8px;
+    background: #fff3cd; font-size: 13px; display: none;
+  }
+
+  /* ---------- Spelscherm ---------- */
+  #spel-scherm { text-align: center; }
+
+  #bovenbalk { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px; }
+  #niveau-label { font-weight: bold; margin-right: 10px; }
+  #timer-label { font-weight: bold; margin-right: 10px; color: #3d5a80; min-width: 70px; }
+
+  .actie-knop {
+    padding: 8px 14px; font-size: 13px; font-weight: bold; color: white;
+    border: none; border-radius: 6px; cursor: pointer;
+  }
+  .actie-knop:hover { filter: brightness(1.08); }
+  .kleur-groen  { background: #4a7c59; }
+  .kleur-grijs  { background: #8d99ae; }
+  .kleur-geel   { background: #d9a441; }
+  .kleur-blauw  { background: #3d5a80; }
+  .kleur-paars  { background: #7c4a9e; }
+
+  #race-banner {
+    background: #ffe8b3; border: 1px solid #d9a441; padding: 8px 14px;
+    border-radius: 8px; font-size: 13px; margin-bottom: 10px; display: none;
+  }
+
+  #bord {
+    display: inline-grid; grid-template-columns: repeat(9, 38px); grid-template-rows: repeat(9, 38px);
+    background: #222; gap: 1px; padding: 3px; border-radius: 4px;
+  }
+  .cel { width: 38px; height: 38px; text-align: center; font-size: 17px; border: none; background: white; color: #1a5276; }
+  .cel:disabled { background: #e8e5db; color: #000; font-weight: bold; }
+  .cel.goed { background: #d4edda; }
+  .cel.fout { background: #f8d7da; }
+  .cel.hint { background: #fff3cd; }
+  .rand-rechts { border-right: 3px solid #222; }
+  .rand-onder  { border-bottom: 3px solid #222; }
+
+  #status { margin-top: 10px; min-height: 18px; font-size: 13px; color: #555; }
+
+  /* ---------- Scorebord ---------- */
+  #scorebord-paneel {
+    margin-top: 16px; background: white; border-radius: 10px; padding: 14px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1); max-width: 320px; margin-left: auto; margin-right: auto;
+  }
+  #scorebord-paneel h3 { margin: 0 0 8px 0; font-size: 15px; }
+  #scorebord-paneel table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #scorebord-paneel td, #scorebord-paneel th { padding: 4px 6px; text-align: left; border-bottom: 1px solid #eee; }
+  #scorebord-paneel th { color: #999; font-weight: normal; }
+</style>
+</head>
+<body>
+
+  <!-- ================= START SCHERM ================= -->
+  <div id="start-scherm">
+    <div id="icoon-grid"></div>
+    <h1 class="titel">Sudoku</h1>
+    <p class="subtitel">Vul je naam in en kies een moeilijkheidsgraad</p>
+
+    <input type="text" id="naam-veld" placeholder="Jouw naam" maxlength="30">
+
+    <div id="race-status"></div>
+
+    <button class="niveau-knop knop-makkelijk" onclick="startEigenSpel('Makkelijk')">😊  Makkelijk</button>
+    <button class="niveau-knop knop-gemiddeld" onclick="startEigenSpel('Gemiddeld')">🙂  Gemiddeld</button>
+    <button class="niveau-knop knop-moeilijk"  onclick="startEigenSpel('Moeilijk')">🔥  Moeilijk</button>
+
+    <div class="scherm-scheiding"></div>
+
+    <p class="subtitel">Of start een race waar iedereen op het netwerk aan mee kan doen:</p>
+    <button class="niveau-knop" style="background:#7c4a9e" onclick="startRace('Makkelijk')">🚦 Race — Makkelijk</button>
+    <button class="niveau-knop" style="background:#7c4a9e" onclick="startRace('Gemiddeld')">🚦 Race — Gemiddeld</button>
+    <button class="niveau-knop" style="background:#7c4a9e" onclick="startRace('Moeilijk')">🚦 Race — Moeilijk</button>
+  </div>
+
+  <!-- ================= SPEL SCHERM ================= -->
+  <div id="spel-scherm" class="verborgen">
+    <div id="race-banner"></div>
+    <div id="bovenbalk">
+      <span id="niveau-label"></span>
+      <span id="timer-label">0:00</span>
+      <button class="actie-knop kleur-groen" onclick="nieuwEigenSpel()">Nieuw spel</button>
+      <button class="actie-knop kleur-grijs" onclick="toonStartScherm()">Hoofdmenu</button>
+      <button class="actie-knop kleur-geel" onclick="geefHint()">Hint</button>
+      <button class="actie-knop kleur-blauw" onclick="controleerBord()">Controleer</button>
+      <button class="actie-knop kleur-grijs" onclick="toonOplossing()">Oplossen</button>
+    </div>
+    <div id="bord"></div>
+    <div id="status"></div>
+
+    <div id="scorebord-paneel">
+      <h3 id="scorebord-titel">🏆 Snelste tijden</h3>
+      <table>
+        <thead><tr><th>#</th><th>Naam</th><th>Tijd</th></tr></thead>
+        <tbody id="scorebord-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+/* =========================================================
+   Sudoku-hulpfuncties (client-side, voor validatie/weergave)
+   ========================================================= */
+
+function maakLeegBord() {
+  return Array.from({length: 9}, () => Array(9).fill(0));
+}
+
+/* =========================================================
+   Spelstatus
+   ========================================================= */
+
+let puzzel = null, oplossing = null;
+let cellen = [];
+let aantalHintsGebruikt = 0;
+let huidigeMoeilijkheid = "Gemiddeld";
+
+let spelModus = "solo";     // "solo" of "race"
+let huidigeRaceId = null;
+let laatstBekendeRaceId = null;
+let pollTimer = null;
+
+let starttijd = null;
+let timerInterval = null;
+let klaarGemeld = false;
+
+function naam() {
+  const veld = document.getElementById("naam-veld");
+  const waarde = (veld.value || "").trim();
+  return waarde || "Anoniem";
+}
+
+/* =========================================================
+   Startscherm icoontje
+   ========================================================= */
+
+function tekenIcoon() {
+  const kleuren = ["#f7d6a3","#a3d8f4","#f4a3a3","#b8e0b0","#e0b0e6","#f4e5a3","#a3f4e0","#f4c2a3","#c2a3f4"];
+  const vast = { "0,1":"5","0,2":"3","1,0":"6","1,2":"1","2,0":"9","2,1":"7" };
+  const grid = document.getElementById("icoon-grid");
+  for (let r = 0; r < 3; r++) {
+    for (let k = 0; k < 3; k++) {
+      const cel = document.createElement("div");
+      cel.className = "icoon-cel";
+      cel.style.background = kleuren[r*3+k];
+      cel.textContent = vast[`${r},${k}`] || "";
+      grid.appendChild(cel);
+    }
+  }
+}
+
+/* =========================================================
+   Bord opbouwen / vullen
+   ========================================================= */
+
+function bouwBordAlsNodig() {
+  if (cellen.length > 0) return;
+  const bordEl = document.getElementById("bord");
+  for (let r = 0; r < 9; r++) {
+    const rijArray = [];
+    for (let k = 0; k < 9; k++) {
+      const input = document.createElement("input");
+      input.className = "cel";
+      input.maxLength = 1;
+      input.inputMode = "numeric";
+      if (k === 2 || k === 5) input.classList.add("rand-rechts");
+      if (r === 2 || r === 5) input.classList.add("rand-onder");
+      input.addEventListener("input", (e) => {
+        if (!/^[1-9]$/.test(e.target.value)) e.target.value = "";
+        e.target.classList.remove("goed", "fout", "hint");
+      });
+      bordEl.appendChild(input);
+      rijArray.push(input);
+    }
+    cellen.push(rijArray);
+  }
+}
+
+function vulBordMetPuzzel() {
+  for (let r = 0; r < 9; r++) {
+    for (let k = 0; k < 9; k++) {
+      const input = cellen[r][k];
+      input.value = "";
+      input.disabled = false;
+      input.classList.remove("goed", "fout", "hint");
+      if (puzzel[r][k] !== 0) {
+        input.value = puzzel[r][k];
+        input.disabled = true;
+      }
+    }
+  }
+}
+
+function huidigBordOphalen() {
+  const bord = maakLeegBord();
+  for (let r = 0; r < 9; r++) {
+    for (let k = 0; k < 9; k++) {
+      const waarde = cellen[r][k].value;
+      bord[r][k] = /^[1-9]$/.test(waarde) ? parseInt(waarde, 10) : 0;
+    }
+  }
+  return bord;
+}
+
+/* =========================================================
+   Timer
+   ========================================================= */
+
+function startTimer() {
+  starttijd = Date.now();
+  klaarGemeld = false;
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const verstreken = Math.floor((Date.now() - starttijd) / 1000);
+    const min = Math.floor(verstreken / 60);
+    const sec = verstreken % 60;
+    document.getElementById("timer-label").textContent = `${min}:${sec.toString().padStart(2, "0")}`;
+  }, 500);
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  if (starttijd) return (Date.now() - starttijd) / 1000;
+  return 0;
+}
+
+/* =========================================================
+   Solo-modus
+   ========================================================= */
+
+async function startEigenSpel(niveau) {
+  huidigeMoeilijkheid = niveau;
+  spelModus = "solo";
+  bouwBordAlsNodig();
+  toonSpelScherm();
+  stopPollen();
+  document.getElementById("race-banner").style.display = "none";
+  await nieuwEigenSpel();
+}
+
+async function nieuwEigenSpel() {
+  document.getElementById("status").textContent = "Puzzel wordt gegenereerd...";
+  const resp = await fetch(`/api/puzzel?moeilijkheid=${encodeURIComponent(huidigeMoeilijkheid)}`);
+  const data = await resp.json();
+  puzzel = data.puzzel;
+  oplossing = data.oplossing;
+  aantalHintsGebruikt = 0;
+
+  document.getElementById("niveau-label").textContent = "Niveau: " + huidigeMoeilijkheid;
+  document.getElementById("status").textContent = "Nieuw spel gestart — niveau: " + huidigeMoeilijkheid;
+  vulBordMetPuzzel();
+  ververtScorebord();
+  startTimer();
+}
+
+/* =========================================================
+   Race-modus
+   ========================================================= */
+
+async function startRace(niveau) {
+  const resp = await fetch("/api/race/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ moeilijkheid: niveau }),
+  });
+  const data = await resp.json();
+  laadRace(data);
+}
+
+function laadRace(data) {
+  huidigeRaceId = data.race_id;
+  laatstBekendeRaceId = data.race_id;
+  huidigeMoeilijkheid = data.moeilijkheid;
+  puzzel = data.puzzel;
+  oplossing = data.oplossing;
+  aantalHintsGebruikt = 0;
+  spelModus = "race";
+
+  bouwBordAlsNodig();
+  toonSpelScherm();
+
+  document.getElementById("race-banner").style.display = "block";
+  document.getElementById("race-banner").textContent =
+    `🚦 Race bezig (niveau: ${huidigeMoeilijkheid}) — probeer als eerste klaar te zijn!`;
+  document.getElementById("niveau-label").textContent = "Race: " + huidigeMoeilijkheid;
+
+  vulBordMetPuzzel();
+  document.getElementById("status").textContent = "Race gestart! Succes!";
+  startTimer();
+  toonRaceScorebord();
+  startPollen();
+}
+
+function startPollen() {
+  stopPollen();
+  pollTimer = setInterval(controleerNieuweRace, 2000);
+}
+
+function stopPollen() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
+}
+
+async function controleerNieuweRace() {
+  try {
+    const resp = await fetch("/api/race/current");
+    const data = await resp.json();
+    if (!data) return;
+
+    // Als er een race bezig is die we nog niet kennen -> automatisch meedoen
+    if (data.race_id !== laatstBekendeRaceId) {
+      laatstBekendeRaceId = data.race_id;
+      laadRace(data);
+      return;
+    }
+
+    // Anders: als we zelf in een race zitten, ververs de live ranglijst
+    if (spelModus === "race" && huidigeRaceId) {
+      ververtRaceResultaten();
+    }
+  } catch (e) {
+    // netwerkfoutje, gewoon volgende keer opnieuw proberen
+  }
+}
+
+async function ververtRaceResultaten() {
+  const resp = await fetch(`/api/race/resultaten/${huidigeRaceId}`);
+  const rijen = await resp.json();
+  vulScorebordTabel(rijen, "🏁 Live ranglijst deze race");
+}
+
+/* =========================================================
+   Scherm wisselen
+   ========================================================= */
+
+function toonSpelScherm() {
+  document.getElementById("start-scherm").classList.add("verborgen");
+  document.getElementById("spel-scherm").classList.remove("verborgen");
+}
+
+function toonStartScherm() {
+  stopTimer();
+  stopPollen();
+  document.getElementById("spel-scherm").classList.add("verborgen");
+  document.getElementById("start-scherm").classList.remove("verborgen");
+  document.getElementById("race-status").style.display = "none";
+}
+
+/* =========================================================
+   Acties: controleer / hint / oplossen
+   ========================================================= */
+
+async function controleerBord() {
+  const huidig = huidigBordOphalen();
+  let fouten = 0, onvolledig = false;
+
+  for (let r = 0; r < 9; r++) {
+    for (let k = 0; k < 9; k++) {
+      const input = cellen[r][k];
+      if (input.disabled) continue;
+      input.classList.remove("goed", "fout");
+      const waarde = huidig[r][k];
+      if (waarde === 0) onvolledig = true;
+      else if (waarde === oplossing[r][k]) input.classList.add("goed");
+      else { input.classList.add("fout"); fouten++; }
+    }
+  }
+
+  const status = document.getElementById("status");
+  if (fouten > 0) {
+    status.textContent = `Er staan nog ${fouten} foute cijfers in het bord.`;
+  } else if (onvolledig) {
+    status.textContent = "Tot nu toe goed, maar nog niet klaar!";
+  } else {
+    status.textContent = "Helemaal correct — knap gedaan! 🎉";
+    await meldKlaar();
+  }
+}
+
+async function meldKlaar() {
+  if (klaarGemeld) return;
+  klaarGemeld = true;
+  const tijdSeconden = stopTimer();
+  const speler = naam();
+
+  if (spelModus === "race" && huidigeRaceId) {
+    const resp = await fetch("/api/race/finish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ race_id: huidigeRaceId, naam: speler, tijd_seconden: tijdSeconden }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      alert(`Gefeliciteerd ${speler}, je bent klaar in ${Math.round(tijdSeconden)} seconden! Check de live ranglijst.`);
+    }
+    ververtRaceResultaten();
+  } else {
+    await fetch("/api/score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ naam: speler, moeilijkheid: huidigeMoeilijkheid, tijd_seconden: tijdSeconden }),
+    });
+    alert(`Gefeliciteerd ${speler}, je bent klaar in ${Math.round(tijdSeconden)} seconden!`);
+    ververtScorebord();
+  }
+}
+
+function geefHint() {
+  const huidig = huidigBordOphalen();
+  const kandidaten = [];
+  for (let r = 0; r < 9; r++) {
+    for (let k = 0; k < 9; k++) {
+      if (cellen[r][k].disabled) continue;
+      if (huidig[r][k] !== oplossing[r][k]) kandidaten.push([r, k]);
+    }
+  }
+  const status = document.getElementById("status");
+  if (kandidaten.length === 0) {
+    status.textContent = "Er zijn geen cellen meer om een hint voor te geven.";
+    return;
+  }
+  const [r, k] = kandidaten[Math.floor(Math.random() * kandidaten.length)];
+  const input = cellen[r][k];
+  input.value = oplossing[r][k];
+  input.classList.remove("goed", "fout");
+  input.classList.add("hint");
+  aantalHintsGebruikt++;
+  status.textContent = `Hint gegeven bij rij ${r+1}, kolom ${k+1}. (Totaal gebruikte hints: ${aantalHintsGebruikt})`;
+}
+
+function toonOplossing() {
+  if (!confirm("Weet je zeker dat je de volledige oplossing wilt zien? Dit beëindigt het huidige spel.")) return;
+  for (let r = 0; r < 9; r++) {
+    for (let k = 0; k < 9; k++) {
+      const input = cellen[r][k];
+      input.value = oplossing[r][k];
+      input.disabled = true;
+      input.classList.remove("goed", "fout", "hint");
+    }
+  }
+  document.getElementById("status").textContent = "Oplossing getoond.";
+  stopTimer();
+  klaarGemeld = true;
+}
+
+/* =========================================================
+   Scorebord
+   ========================================================= */
+
+function vulScorebordTabel(rijen, titel) {
+  document.getElementById("scorebord-titel").textContent = titel;
+  const body = document.getElementById("scorebord-body");
+  body.innerHTML = "";
+  rijen.slice(0, 10).forEach((rij, i) => {
+    const tr = document.createElement("tr");
+    const min = Math.floor(rij.tijd_seconden / 60);
+    const sec = Math.round(rij.tijd_seconden % 60);
+    tr.innerHTML = `<td>${i + 1}</td><td>${rij.naam}</td><td>${min}:${sec.toString().padStart(2,"0")}</td>`;
+    body.appendChild(tr);
+  });
+  if (rijen.length === 0) {
+    body.innerHTML = `<tr><td colspan="3" style="color:#aaa;">Nog geen tijden geregistreerd</td></tr>`;
+  }
+}
+
+async function ververtScorebord() {
+  const resp = await fetch(`/api/leaderboard?moeilijkheid=${encodeURIComponent(huidigeMoeilijkheid)}`);
+  const rijen = await resp.json();
+  vulScorebordTabel(rijen, `🏆 Snelste tijden — ${huidigeMoeilijkheid}`);
+}
+
+async function toonRaceScorebord() {
+  vulScorebordTabel([], "🏁 Live ranglijst deze race");
+}
+
+/* =========================================================
+   Init: bij laden checken of er al een race bezig is
+   ========================================================= */
+
+async function initCheckLopendeRace() {
+  try {
+    const resp = await fetch("/api/race/current");
+    const data = await resp.json();
+    if (data) {
+      const statusEl = document.getElementById("race-status");
+      statusEl.style.display = "block";
+      statusEl.textContent = `🚦 Er is al een race bezig (${data.moeilijkheid})! Kies zelf een moeilijkheid of wacht op de volgende race.`;
+      laatstBekendeRaceId = data.race_id;
+    }
+  } catch (e) {}
+}
+
+tekenIcoon();
+initCheckLopendeRace();
+</script>
+
+</body>
+</html>
