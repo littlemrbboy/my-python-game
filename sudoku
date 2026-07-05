@@ -1,0 +1,490 @@
+"""
+Sudoku spel met Tkinter
+------------------------
+Een volledig speelbaar Sudoku-spel met:
+- 3 moeilijkheidsgraden (Makkelijk, Gemiddeld, Moeilijk)
+- Hint-functie
+- Controleer-knop om je voortgang te checken
+- Nieuw spel starten op elk moment
+
+Uitvoeren met: python sudoku.py
+(Tkinter zit standaard bij Python, dus geen extra installatie nodig)
+"""
+
+import tkinter as tk
+from tkinter import messagebox, font
+import random
+import copy
+
+# ---------------------------------------------------------------------------
+# Sudoku-logica (los van de GUI)
+# ---------------------------------------------------------------------------
+
+def maak_leeg_bord():
+    return [[0] * 9 for _ in range(9)]
+
+
+def is_geldig(bord, rij, kolom, waarde):
+    """Check of 'waarde' geldig geplaatst kan worden op (rij, kolom)."""
+    # Check rij en kolom
+    for i in range(9):
+        if bord[rij][i] == waarde or bord[i][kolom] == waarde:
+            return False
+
+    # Check het 3x3 blok
+    blok_rij, blok_kolom = 3 * (rij // 3), 3 * (kolom // 3)
+    for r in range(blok_rij, blok_rij + 3):
+        for k in range(blok_kolom, blok_kolom + 3):
+            if bord[r][k] == waarde:
+                return False
+
+    return True
+
+
+def vind_lege_cel(bord):
+    for r in range(9):
+        for k in range(9):
+            if bord[r][k] == 0:
+                return r, k
+    return None
+
+
+def los_op(bord):
+    """Backtracking-solver. Vult 'bord' in-place op als er een oplossing is."""
+    cel = vind_lege_cel(bord)
+    if cel is None:
+        return True  # klaar, bord is volledig opgelost
+
+    rij, kolom = cel
+    cijfers = list(range(1, 10))
+    random.shuffle(cijfers)
+
+    for waarde in cijfers:
+        if is_geldig(bord, rij, kolom, waarde):
+            bord[rij][kolom] = waarde
+            if los_op(bord):
+                return True
+            bord[rij][kolom] = 0
+
+    return False
+
+
+def genereer_volledig_bord():
+    bord = maak_leeg_bord()
+    los_op(bord)
+    return bord
+
+
+# Aantal cijfers dat blijft staan (hoe minder, hoe moeilijker)
+MOEILIJKHEID_CLUES = {
+    "Makkelijk": 42,
+    "Gemiddeld": 32,
+    "Moeilijk": 24,
+}
+
+
+def genereer_puzzel(moeilijkheid):
+    """Geeft (puzzel, oplossing) terug. 'puzzel' bevat 0'en voor lege cellen."""
+    oplossing = genereer_volledig_bord()
+    puzzel = copy.deepcopy(oplossing)
+
+    aantal_clues = MOEILIJKHEID_CLUES.get(moeilijkheid, 32)
+    aantal_te_verwijderen = 81 - aantal_clues
+
+    posities = [(r, k) for r in range(9) for k in range(9)]
+    random.shuffle(posities)
+
+    for r, k in posities[:aantal_te_verwijderen]:
+        puzzel[r][k] = 0
+
+    return puzzel, oplossing
+
+
+# ---------------------------------------------------------------------------
+# GUI
+# ---------------------------------------------------------------------------
+
+KLEUR_ACHTERGROND = "#fdf6e9"
+KLEUR_MAKKELIJK = "#5cb85c"
+KLEUR_GEMIDDELD = "#f0ad4e"
+KLEUR_MOEILIJK = "#d9534f"
+KLEUR_ACCENT_DONKER = "#3a3a3a"
+
+
+class SudokuApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Sudoku")
+        self.root.resizable(False, False)
+        self.root.configure(bg=KLEUR_ACHTERGROND)
+
+        self.moeilijkheid = tk.StringVar(value="Gemiddeld")
+        self.aantal_hints_gebruikt = 0
+
+        self.cel_font = font.Font(family="Helvetica", size=18)
+        self.gegeven_font = font.Font(family="Helvetica", size=18, weight="bold")
+
+        # Twee "schermen": het startscherm en het spelscherm.
+        # Er wordt steeds maar één van de twee getoond (gepackt).
+        self.start_frame = tk.Frame(self.root, bg=KLEUR_ACHTERGROND)
+        self.game_frame = tk.Frame(self.root, bg=KLEUR_ACHTERGROND)
+
+        self._bouw_start_scherm()
+
+        self._bouw_bovenbalk()
+        self._bouw_bord()
+        self._bouw_onderbalk()
+
+        self._toon_start_scherm()
+
+    # -- Startscherm ----------------------------------------------------
+
+    def _teken_sudoku_icoon(self, canvas_ouder):
+        """Tekent een klein, kleurrijk sudoku-icoontje als leuk plaatje."""
+        grootte = 180
+        canvas = tk.Canvas(
+            canvas_ouder, width=grootte, height=grootte, bg=KLEUR_ACHTERGROND,
+            highlightthickness=0,
+        )
+
+        kleuren = [
+            "#f7d6a3", "#a3d8f4", "#f4a3a3",
+            "#b8e0b0", "#e0b0e6", "#f4e5a3",
+            "#a3f4e0", "#f4c2a3", "#c2a3f4",
+        ]
+        vaste_cijfers = {
+            (0, 1): "5", (0, 2): "3",
+            (1, 0): "6", (1, 2): "1",
+            (2, 0): "9", (2, 1): "7",
+        }
+
+        vak = grootte / 3
+        for r in range(3):
+            for k in range(3):
+                x0, y0 = k * vak, r * vak
+                x1, y1 = x0 + vak, y0 + vak
+                canvas.create_rectangle(
+                    x0 + 3, y0 + 3, x1 - 3, y1 - 3,
+                    fill=kleuren[r * 3 + k], outline="", width=0,
+                )
+                if (r, k) in vaste_cijfers:
+                    canvas.create_text(
+                        (x0 + x1) / 2, (y0 + y1) / 2,
+                        text=vaste_cijfers[(r, k)],
+                        font=("Helvetica", 22, "bold"),
+                        fill="#333333",
+                    )
+
+        # Dikke buitenrand + dunne binnenlijnen, als een echt sudoku-bord
+        canvas.create_rectangle(2, 2, grootte - 2, grootte - 2, outline="#333333", width=3)
+        for i in (1, 2):
+            canvas.create_line(i * vak, 0, i * vak, grootte, fill="#333333", width=2)
+            canvas.create_line(0, i * vak, grootte, i * vak, fill="#333333", width=2)
+
+        return canvas
+
+    def _bouw_start_scherm(self):
+        frame = self.start_frame
+
+        binnenkader = tk.Frame(frame, bg=KLEUR_ACHTERGROND, padx=40, pady=30)
+        binnenkader.pack()
+
+        icoon = self._teken_sudoku_icoon(binnenkader)
+        icoon.pack(pady=(0, 15))
+
+        tk.Label(
+            binnenkader,
+            text="Sudoku",
+            font=("Helvetica", 32, "bold"),
+            fg="#3a3a3a",
+            bg=KLEUR_ACHTERGROND,
+        ).pack()
+
+        tk.Label(
+            binnenkader,
+            text="Kies een moeilijkheidsgraad om te beginnen",
+            font=("Helvetica", 12),
+            fg="#777777",
+            bg=KLEUR_ACHTERGROND,
+        ).pack(pady=(0, 20))
+
+        knoppen_info = [
+            ("Makkelijk", KLEUR_MAKKELIJK, "😊"),
+            ("Gemiddeld", KLEUR_GEMIDDELD, "🙂"),
+            ("Moeilijk", KLEUR_MOEILIJK, "🔥"),
+        ]
+
+        for niveau, kleur, emoji in knoppen_info:
+            tk.Button(
+                binnenkader,
+                text=f"{emoji}  {niveau}",
+                font=("Helvetica", 14, "bold"),
+                fg="white",
+                bg=kleur,
+                activebackground=kleur,
+                activeforeground="white",
+                relief="flat",
+                width=18,
+                pady=8,
+                command=lambda n=niveau: self._start_spel(n),
+            ).pack(pady=6)
+
+    def _toon_start_scherm(self):
+        self.game_frame.pack_forget()
+        self.start_frame.pack()
+
+    def _start_spel(self, niveau):
+        self.moeilijkheid.set(niveau)
+        self.start_frame.pack_forget()
+        self.game_frame.pack()
+        self.nieuw_spel()
+
+    # -- UI opbouw (spelscherm) ------------------------------------------
+
+    def _bouw_bovenbalk(self):
+        balk = tk.Frame(self.game_frame, bg=KLEUR_ACHTERGROND, pady=10)
+        balk.pack()
+
+        self.niveau_label = tk.Label(
+            balk, text="", bg=KLEUR_ACHTERGROND, font=("Helvetica", 13, "bold"), fg=KLEUR_ACCENT_DONKER,
+        )
+        self.niveau_label.pack(side="left", padx=(10, 20))
+
+        tk.Button(
+            balk,
+            text="Nieuw spel",
+            command=self.nieuw_spel,
+            bg="#4a7c59",
+            fg="white",
+            font=("Helvetica", 11, "bold"),
+            relief="flat",
+            padx=10,
+        ).pack(side="left", padx=5)
+
+        tk.Button(
+            balk,
+            text="Hoofdmenu",
+            command=self._toon_start_scherm,
+            bg="#8d99ae",
+            fg="white",
+            font=("Helvetica", 11, "bold"),
+            relief="flat",
+            padx=10,
+        ).pack(side="left", padx=5)
+
+    def _bouw_bord(self):
+        bord_frame = tk.Frame(self.game_frame, bg="#222222", bd=3)
+        bord_frame.pack(padx=15, pady=10)
+
+        self.entries = [[None for _ in range(9)] for _ in range(9)]
+
+        for blok_r in range(3):
+            for blok_k in range(3):
+                # Elk 3x3 blok krijgt een eigen frame met dikke rand,
+                # zodat de bloklijnen duidelijk zichtbaar zijn.
+                blok_frame = tk.Frame(
+                    bord_frame, bg="#222222", bd=2, relief="solid"
+                )
+                blok_frame.grid(row=blok_r, column=blok_k)
+
+                for r in range(3):
+                    for k in range(3):
+                        rij = blok_r * 3 + r
+                        kolom = blok_k * 3 + k
+
+                        vcmd = (self.root.register(self._valideer_invoer), "%P")
+                        entry = tk.Entry(
+                            blok_frame,
+                            width=2,
+                            font=self.cel_font,
+                            justify="center",
+                            relief="flat",
+                            bd=0,
+                            highlightthickness=1,
+                            highlightbackground="#bbbbbb",
+                            validate="key",
+                            validatecommand=vcmd,
+                        )
+                        entry.grid(row=r, column=k, ipady=8, padx=1, pady=1)
+                        self.entries[rij][kolom] = entry
+
+    def _bouw_onderbalk(self):
+        balk = tk.Frame(self.game_frame, bg=KLEUR_ACHTERGROND, pady=10)
+        balk.pack()
+
+        tk.Button(
+            balk,
+            text="Hint",
+            command=self.geef_hint,
+            bg="#d9a441",
+            fg="white",
+            font=("Helvetica", 11, "bold"),
+            relief="flat",
+            padx=15,
+        ).pack(side="left", padx=5)
+
+        tk.Button(
+            balk,
+            text="Controleer",
+            command=self.controleer_bord,
+            bg="#3d5a80",
+            fg="white",
+            font=("Helvetica", 11, "bold"),
+            relief="flat",
+            padx=15,
+        ).pack(side="left", padx=5)
+
+        tk.Button(
+            balk,
+            text="Oplossen",
+            command=self.toon_oplossing,
+            bg="#8d99ae",
+            fg="white",
+            font=("Helvetica", 11, "bold"),
+            relief="flat",
+            padx=15,
+        ).pack(side="left", padx=5)
+
+        self.status_label = tk.Label(
+            self.game_frame, text="", bg=KLEUR_ACHTERGROND, font=("Helvetica", 11), fg="#555"
+        )
+        self.status_label.pack(pady=(0, 10))
+
+    # -- Validatie van invoer -------------------------------------------
+
+    def _valideer_invoer(self, nieuwe_waarde):
+        # Alleen lege string of een enkel cijfer 1-9 toestaan
+        return nieuwe_waarde == "" or (
+            nieuwe_waarde.isdigit() and len(nieuwe_waarde) == 1 and nieuwe_waarde != "0"
+        )
+
+    # -- Spel-acties ------------------------------------------------------
+
+    def nieuw_spel(self):
+        niveau = self.moeilijkheid.get()
+        self.puzzel, self.oplossing = genereer_puzzel(niveau)
+        self.aantal_hints_gebruikt = 0
+        self.niveau_label.config(text=f"Niveau: {niveau}")
+        self.status_label.config(text=f"Nieuw spel gestart — niveau: {niveau}")
+
+        for r in range(9):
+            for k in range(9):
+                entry = self.entries[r][k]
+                entry.config(
+                    state="normal",
+                    disabledforeground="#000000",
+                    fg="#1a5276",
+                    bg="white",
+                )
+                entry.delete(0, tk.END)
+
+                waarde = self.puzzel[r][k]
+                if waarde != 0:
+                    entry.insert(0, str(waarde))
+                    entry.config(
+                        state="disabled",
+                        disabledforeground="#000000",
+                        font=self.gegeven_font,
+                        disabledbackground="#e8e5db",
+                    )
+                else:
+                    entry.config(font=self.cel_font)
+
+    def _huidig_bord_ophalen(self):
+        """Leest de huidige stand van het bord uit de Entry-widgets."""
+        bord = maak_leeg_bord()
+        for r in range(9):
+            for k in range(9):
+                tekst = self.entries[r][k].get()
+                bord[r][k] = int(tekst) if tekst.isdigit() else 0
+        return bord
+
+    def controleer_bord(self):
+        huidig = self._huidig_bord_ophalen()
+        fouten = 0
+        onvolledig = False
+
+        for r in range(9):
+            for k in range(9):
+                entry = self.entries[r][k]
+                if str(entry.cget("state")) == "disabled":
+                    continue  # gegeven cijfer, altijd goed
+
+                waarde = huidig[r][k]
+                if waarde == 0:
+                    onvolledig = True
+                    entry.config(bg="white")
+                elif waarde == self.oplossing[r][k]:
+                    entry.config(bg="#d4edda")  # groen: goed
+                else:
+                    entry.config(bg="#f8d7da")  # rood: fout
+                    fouten += 1
+
+        if fouten > 0:
+            self.status_label.config(
+                text=f"Er staan nog {fouten} foute cijfers in het bord."
+            )
+        elif onvolledig:
+            self.status_label.config(text="Tot nu toe goed, maar nog niet klaar!")
+        else:
+            self.status_label.config(text="Helemaal correct — knap gedaan! 🎉")
+            messagebox.showinfo("Sudoku", "Gefeliciteerd, je hebt de sudoku opgelost!")
+
+    def geef_hint(self):
+        """Vult één lege of foute cel in met het juiste cijfer."""
+        huidig = self._huidig_bord_ophalen()
+        kandidaten = []
+
+        for r in range(9):
+            for k in range(9):
+                if str(self.entries[r][k].cget("state")) == "disabled":
+                    continue
+                if huidig[r][k] != self.oplossing[r][k]:
+                    kandidaten.append((r, k))
+
+        if not kandidaten:
+            self.status_label.config(text="Er zijn geen cellen meer om een hint voor te geven.")
+            return
+
+        r, k = random.choice(kandidaten)
+        entry = self.entries[r][k]
+        entry.config(state="normal")
+        entry.delete(0, tk.END)
+        entry.insert(0, str(self.oplossing[r][k]))
+        entry.config(bg="#fff3cd")  # geel: hint
+
+        self.aantal_hints_gebruikt += 1
+        self.status_label.config(
+            text=f"Hint gegeven bij rij {r + 1}, kolom {k + 1}. "
+            f"(Totaal gebruikte hints: {self.aantal_hints_gebruikt})"
+        )
+
+    def toon_oplossing(self):
+        antwoord = messagebox.askyesno(
+            "Oplossing tonen",
+            "Weet je zeker dat je de volledige oplossing wilt zien? "
+            "Dit beëindigt het huidige spel.",
+        )
+        if not antwoord:
+            return
+
+        for r in range(9):
+            for k in range(9):
+                entry = self.entries[r][k]
+                entry.config(state="normal")
+                entry.delete(0, tk.END)
+                entry.insert(0, str(self.oplossing[r][k]))
+                entry.config(state="disabled", disabledforeground="#555555", bg="#e8e5db")
+
+        self.status_label.config(text="Oplossing getoond.")
+
+
+# ---------------------------------------------------------------------------
+# Start het spel
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = SudokuApp(root)
+    root.mainloop()
+    

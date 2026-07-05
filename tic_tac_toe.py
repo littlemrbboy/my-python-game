@@ -20,14 +20,16 @@ import random
 # ---------------------------------------------------------
 # GAME STATE
 # ---------------------------------------------------------
+
 # These variables are shared across functions, so we declare them here
 # and update them as the game progresses.
-board = [" "] * 9          # same idea as the console version: 9 squares
-buttons = []                # will hold the actual button widgets, one per square
-mode = None                  # "computer" or "human"
-current_symbol = "X"        # whose turn it is right now
-player_symbol = "X"         # only used in "computer" mode
-computer_symbol = "O"       # only used in "computer" mode
+
+board = [" "] * 9               # same idea as the console version: 9 squares
+buttons = []                    # will hold the actual button widgets, one per square
+mode = None                     # "computer" or "human"
+current_symbol = "X"            # whose turn it is right now
+player_symbol = "X"             # only used in "computer" mode
+computer_symbol = "O"           # only used in "computer" mode
 game_over = False
 
 
@@ -41,6 +43,7 @@ WINNING_COMBINATIONS = [
 # ---------------------------------------------------------
 # GAME LOGIC (same ideas as the console version)
 # ---------------------------------------------------------
+
 def is_winner(symbol):
     for a, b, c in WINNING_COMBINATIONS:
         if board[a] == symbol and board[b] == symbol and board[c] == symbol:
@@ -275,6 +278,7 @@ def show_result(message):
 # ---------------------------------------------------------
 # START THE APP
 # ---------------------------------------------------------
+
 show_start_screen()
 root.mainloop()  # This line keeps the window open and listening for clicks.
                    # Nothing after this line will run until the window is closed.
